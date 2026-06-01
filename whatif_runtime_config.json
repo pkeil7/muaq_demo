@@ -1,0 +1,23 @@
+{
+  "default_model_path": "SpatialFullSet",
+  "default_grid_data_path": "demo_data/demo_subset_30km_1week.nc",
+  "selectable_weather_features": [
+    "era5_blh",
+    "era5l_t2m",
+    "era5l_sp",
+    "era5l_rh",
+    "era5l_ws",
+    "era5l_wd"
+  ],
+  "mod_offset_min": -30.0,
+  "mod_offset_max": 30.0,
+  "mod_scale_min": 0.5,
+  "mod_scale_max": 1.5,
+  "weather_scale_min": 0.5,
+  "weather_scale_max": 1.5,
+  "weather_offset_bounds": {},
+  "weather_offset_internal_scales": {
+    "era5l_sp": 100.0,
+    "era5_sp": 100.0
+  }
+}

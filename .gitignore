@@ -1,0 +1,13 @@
+models
+data
+**/__pycache__/
+jobs
+.venv
+.ipynb_checkpoints
+.vscode
+logs
+model_to_grid/*.gif
+model_to_grid/*.png
+model_to_grid/*.nc
+**/*.gif
+**/*.nc
