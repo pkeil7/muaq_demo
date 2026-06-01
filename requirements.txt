@@ -5,4 +5,4 @@ xarray>=2024.1.0
 netCDF4>=1.6.5
 matplotlib>=3.8
 xgboost>=2.0,<3
-sklearn
+scikit-learn
