@@ -165,7 +165,7 @@ def weather_feature_maps(
 
     baseline_display = _to_display_units(feature_name, baseline_raw)
     scenario_display = _to_display_units(feature_name, scenario_raw)
-    difference = baseline_display - scenario_display
+    difference = scenario_display - baseline_display
 
     label = feature_label(feature_name)
     unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
@@ -204,7 +204,7 @@ def draw_maps(
     fig.colorbar(im1, ax=axes[0, 1], shrink=0.8)
 
     im2 = axes[0, 2].imshow(difference, origin="lower", vmin=-dmax, vmax=dmax, cmap="RdBu_r")
-    axes[0, 2].set_title("Difference (baseline - scenario)")
+    axes[0, 2].set_title("Difference (scenario - baseline)")
     axes[0, 2].invert_yaxis()
     axes[0, 2].set_xticks([])
     axes[0, 2].set_yticks([])
@@ -239,7 +239,7 @@ def draw_maps(
             cbar4.set_label(weather_unit)
 
         im5 = axes[1, 2].imshow(weather_difference, origin="lower", vmin=-w_dmax, vmax=w_dmax, cmap="RdBu_r")
-        axes[1, 2].set_title("Difference (baseline - scenario)")
+        axes[1, 2].set_title("Difference (scenario - baseline)")
         axes[1, 2].invert_yaxis()
         axes[1, 2].set_xticks([])
         axes[1, 2].set_yticks([])
@@ -337,8 +337,7 @@ def main() -> None:
         weather_scale=float(weather_scale),
     )
 
-    baseline, scenario, _ = service.run_scenario(request)
-    difference = baseline - scenario
+    baseline, scenario, difference = service.run_scenario(request)
     weather_maps = weather_feature_maps(service, request)
 
     fig = draw_maps(baseline, scenario, difference, weather_maps=weather_maps)
@@ -354,7 +353,7 @@ def main() -> None:
     st.markdown(
         """
         <div style="max-width: 290px; margin-top: -6px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25;">
-            <strong>Difference diagnostics (baseline - scenario)</strong><br>
+            <strong>Difference diagnostics (scenario - baseline)</strong><br>
             min: {min:.3f}<br>
             mean: {mean:.3f}<br>
             max: {max:.3f}<br>
