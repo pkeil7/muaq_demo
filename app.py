@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 import json
 import os
 from pathlib import Path
@@ -193,8 +192,6 @@ def main() -> None:
 
     options = time_options(service)
     label_to_idx = {label: idx for label, idx in options}
-    idx_to_label = {idx: label for label, idx in options}
-
     st.sidebar.header("Scenario Controls")
     selected_time_label = st.sidebar.select_slider(
         "date/time",
@@ -263,28 +260,29 @@ def main() -> None:
 
     baseline, scenario, delta = service.run_scenario(request)
 
-    left, right = st.columns([3, 2])
-    with left:
-        fig = draw_maps(baseline, scenario, delta)
-        st.pyplot(fig, clear_figure=True)
+    fig = draw_maps(baseline, scenario, delta)
+    st.pyplot(fig, clear_figure=True)
 
-    with right:
-        st.subheader("Active Scenario")
-        preview = asdict(request)
-        preview["selected_time"] = idx_to_label[time_index]
-        preview["weather_offset_unit"] = weather_unit
-        st.json(preview)
-
-        st.subheader("Delta Diagnostics")
-        st.write(
-            {
-                "min": float(np.nanmin(delta)),
-                "mean": float(np.nanmean(delta)),
-                "max": float(np.nanmax(delta)),
-                "p05": float(np.nanpercentile(delta, 5)),
-                "p95": float(np.nanpercentile(delta, 95)),
-            }
-        )
+    diagnostics = {
+        "min": float(np.nanmin(delta)),
+        "mean": float(np.nanmean(delta)),
+        "max": float(np.nanmax(delta)),
+        "p05": float(np.nanpercentile(delta, 5)),
+        "p95": float(np.nanpercentile(delta, 95)),
+    }
+    st.markdown(
+        """
+        <div style="max-width: 290px; margin-top: -6px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25;">
+            <strong>Delta diagnostics</strong><br>
+            min: {min:.3f}<br>
+            mean: {mean:.3f}<br>
+            max: {max:.3f}<br>
+            p05: {p05:.3f}<br>
+            p95: {p95:.3f}
+        </div>
+        """.format(**diagnostics),
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":
