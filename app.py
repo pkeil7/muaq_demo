@@ -363,6 +363,14 @@ def main() -> None:
         """.format(**diagnostics),
         unsafe_allow_html=True,
     )
+    st.markdown(
+        """
+        <div style="max-width: 290px; margin-top: -6px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25;">
+            <strong>github.com/pkeil7/muaq_demo</strong><br>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 if __name__ == "__main__":
