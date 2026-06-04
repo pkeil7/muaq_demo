@@ -42,10 +42,9 @@ FEATURE_MAPPING = {
     19: "clc_vegetation_distance",
     20: "clc_water_distance",
     21: "osm_intersections",
-    22: "osm_major_length",
-    23: "osm_major_distance",
-    24: "osm_residential_length",
-    25: "osm_residential_distance",
+    22: "osm_major_distance",
+    23: "osm_residential_length",
+    24: "osm_residential_distance",
 }
 
 DEFAULT_WEATHER_FEATURES = (
