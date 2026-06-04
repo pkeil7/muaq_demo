@@ -15,7 +15,7 @@ import numpy as np
 import streamlit as st
 
 
-from interactive_demo.whatif_service import ScenarioRequest, XGBWhatIfService
+from whatif_service import ScenarioRequest, XGBWhatIfService
 
 
 FEATURE_LABELS = {
