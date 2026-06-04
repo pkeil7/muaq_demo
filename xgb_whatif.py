@@ -56,7 +56,6 @@ DEFAULT_WEATHER_FEATURES = (
     "era5l_wd",
 )
 
-
 @dataclass
 class WhatIfOverrides:
     """Overrides for one what-if prediction run."""
@@ -89,9 +88,6 @@ class XGBWhatIfPredictor:
         self.ny = int(self.ds.sizes["y"])
         self.nx = int(self.ds.sizes["x"])
 
-        #self.selected_features = self._resolve_features()
-        #if not self.selected_features:
-        #    raise ValueError("No usable features found in dataset for this model.")
         self.selected_features = list(FEATURE_MAPPING.values())
         self.feature_index = list(FEATURE_MAPPING.keys())
         # check that all selected features are present in the dataset
@@ -99,45 +95,8 @@ class XGBWhatIfPredictor:
         if missing:
             raise ValueError(f"Selected features missing from dataset: {missing}")
 
-        self.feature_index = {name: i for i, name in enumerate(self.selected_features)}
+        # Cache for baseline feature matrices by timestep, keyed by time index. Values are [n_points, n_features] arrays.
         self._matrix_cache: Dict[int, np.ndarray] = {}
-
-    def _resolve_features(self) -> List[str]:
-        """Resolve model feature ordering against available dataset variables."""
-        excluded = {"obs", "ctm_residual"}
-        all_features = [name for name in self.ds.data_vars if name not in excluded]
-
-        params_path = self._params_path()
-        feature_list = None
-        if os.path.exists(params_path):
-            with open(params_path, "r", encoding="utf-8") as f:
-                params = json.load(f)
-            feature_list = params.get("features")
-
-        if feature_list is None:
-            return all_features
-
-        selected: List[str] = []
-        for item in feature_list:
-            if isinstance(item, int):
-                feat_name = FEATURE_MAPPING.get(item)
-            elif isinstance(item, str):
-                feat_name = item
-            else:
-                feat_name = None
-
-            if feat_name and feat_name in self.ds.data_vars and feat_name not in excluded:
-                selected.append(feat_name)
-
-        if not selected:
-            return all_features
-
-        return selected
-
-    def _params_path(self) -> str:
-        """Return the expected sidecar params JSON path for the current model file."""
-        model_name = os.path.splitext(os.path.basename(self.model_path))[0]
-        return os.path.join(os.path.dirname(self.model_path), f"{model_name}_params.json")
 
     def _feature_array(self, feature: str, time_index: int) -> np.ndarray:
         """Extract one feature grid for a timestep and convert NaNs to float32 zeros."""

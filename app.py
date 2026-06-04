@@ -14,10 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 
-try:
-    from interactive_demo.whatif_service import ScenarioRequest, XGBWhatIfService
-except ImportError:
-    from whatif_service import ScenarioRequest, XGBWhatIfService
+
+from interactive_demo.whatif_service import ScenarioRequest, XGBWhatIfService
 
 
 FEATURE_LABELS = {

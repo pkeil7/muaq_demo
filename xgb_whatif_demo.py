@@ -19,14 +19,10 @@ import numpy as np
 import ipywidgets as widgets
 from IPython.display import display
 
-try:
-    from .whatif_config import load_runtime_config
-    from .whatif_service import ScenarioRequest, XGBWhatIfService
-    from .xgb_whatif import XGBWhatIfPredictor
-except ImportError:
-    from whatif_config import load_runtime_config
-    from whatif_service import ScenarioRequest, XGBWhatIfService
-    from xgb_whatif import XGBWhatIfPredictor
+
+from whatif_config import load_runtime_config
+from whatif_service import ScenarioRequest, XGBWhatIfService
+from xgb_whatif import XGBWhatIfPredictor
 
 
 FEATURE_LABELS = {
@@ -39,8 +35,8 @@ FEATURE_LABELS = {
     "era5l_wd": "Wind direction",
 }
 
-PRESSURE_FEATURES = {"era5l_sp", "era5_sp"}
-TEMPERATURE_FEATURES = {"era5l_t2m", "era5_t2m"}
+PRESSURE_FEATURES = {"era5l_sp"}
+TEMPERATURE_FEATURES = {"era5l_t2m"}
 
 WEATHER_OFFSET_UNITS = {
     "era5_blh": "m",

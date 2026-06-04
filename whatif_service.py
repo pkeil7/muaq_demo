@@ -14,12 +14,8 @@ from pathlib import Path
 
 import numpy as np
 
-try:
-    from .whatif_config import WhatIfRuntimeConfig, load_runtime_config
-    from .xgb_whatif import WhatIfOverrides, XGBWhatIfPredictor
-except ImportError:
-    from whatif_config import WhatIfRuntimeConfig, load_runtime_config
-    from xgb_whatif import WhatIfOverrides, XGBWhatIfPredictor
+from whatif_config import WhatIfRuntimeConfig, load_runtime_config
+from xgb_whatif import WhatIfOverrides, XGBWhatIfPredictor
 
 
 @dataclass
