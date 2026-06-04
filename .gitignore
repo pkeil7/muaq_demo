@@ -1,13 +1,11 @@
-models
-data
+
 **/__pycache__/
-jobs
 .venv
 .ipynb_checkpoints
 .vscode
+.devcontainer
+.python-version
 logs
-model_to_grid/*.gif
-model_to_grid/*.png
-model_to_grid/*.nc
+demo_data
 **/*.gif
 **/*.nc

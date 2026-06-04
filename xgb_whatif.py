@@ -18,7 +18,7 @@ import numpy as np
 import xarray as xr
 import xgboost as xgb
 
-
+# Hardcoded features. Needs to be adapted if this changes
 FEATURE_MAPPING = {
     0: "mod",
     1: "unixtime",
@@ -70,7 +70,7 @@ class WhatIfOverrides:
 
 
 class XGBWhatIfPredictor:
-    """Obs-only XGBoost grid predictor with lightweight what-if controls."""
+    """XGBoost grid predictor with lightweight what-if controls."""
 
     def __init__(
         self,
@@ -78,6 +78,7 @@ class XGBWhatIfPredictor:
         grid_data_path: str,
         cache_dtype: np.dtype = np.float16,
     ) -> None:
+        """Load the model and grid dataset, then initialize feature metadata and cache."""
         self.model_path = model_path
         self.grid_data_path = grid_data_path
         self.cache_dtype = cache_dtype
@@ -89,9 +90,15 @@ class XGBWhatIfPredictor:
         self.ny = int(self.ds.sizes["y"])
         self.nx = int(self.ds.sizes["x"])
 
-        self.selected_features = self._resolve_features()
-        if not self.selected_features:
-            raise ValueError("No usable features found in dataset for this model.")
+        #self.selected_features = self._resolve_features()
+        #if not self.selected_features:
+        #    raise ValueError("No usable features found in dataset for this model.")
+        self.selected_features = list(FEATURE_MAPPING.values())
+        self.feature_index = list(FEATURE_MAPPING.keys())
+        # check that all selected features are present in the dataset
+        missing = [feat for feat in self.selected_features if feat not in self.ds.data_vars]
+        if missing:
+            raise ValueError(f"Selected features missing from dataset: {missing}")
 
         self.feature_index = {name: i for i, name in enumerate(self.selected_features)}
         self._matrix_cache: Dict[int, np.ndarray] = {}
@@ -129,10 +136,12 @@ class XGBWhatIfPredictor:
         return selected
 
     def _params_path(self) -> str:
+        """Return the expected sidecar params JSON path for the current model file."""
         model_name = os.path.splitext(os.path.basename(self.model_path))[0]
         return os.path.join(os.path.dirname(self.model_path), f"{model_name}_params.json")
 
     def _feature_array(self, feature: str, time_index: int) -> np.ndarray:
+        """Extract one feature grid for a timestep and convert NaNs to float32 zeros."""
         arr = self.ds[feature]
         if "time" in arr.dims:
             values = arr.isel(time=time_index).values
@@ -149,11 +158,13 @@ class XGBWhatIfPredictor:
         return matrix
 
     def get_cached_baseline_matrix(self, time_index: int) -> np.ndarray:
+        """Return cached baseline features for a timestep, building once on first access."""
         if time_index not in self._matrix_cache:
             self._matrix_cache[time_index] = self.build_baseline_matrix(time_index)
         return self._matrix_cache[time_index]
 
     def _apply_overrides(self, X: np.ndarray, overrides: WhatIfOverrides) -> np.ndarray:
+        """Apply scenario overrides in-place to a feature matrix copy before prediction."""
         if "mod" in self.feature_index:
             idx = self.feature_index["mod"]
             X[:, idx] = (X[:, idx] * float(overrides.mod_scale)) + float(overrides.mod_offset)
@@ -195,20 +206,25 @@ class XGBWhatIfPredictor:
         time_index: int,
         overrides: Optional[WhatIfOverrides] = None,
     ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute baseline and scenario predictions for the same timestep."""
         baseline = self.predict_timestep(time_index=time_index, overrides=None)
         scenario = self.predict_timestep(time_index=time_index, overrides=overrides)
         return baseline, scenario
 
     def available_weather_features(self) -> List[str]:
+        """List weather features available in both defaults and the active model inputs."""
         return [name for name in DEFAULT_WEATHER_FEATURES if name in self.feature_index]
 
     def clear_cache(self) -> None:
+        """Clear cached timestep feature matrices to free memory."""
         self._matrix_cache.clear()
 
     def num_timesteps(self) -> int:
+        """Return the number of timesteps in the loaded dataset."""
         return int(self.ds.sizes.get("time", 1))
 
     def coords(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return x and y coordinate vectors for plotting or mapping outputs."""
         return self.ds["x"].values, self.ds["y"].values
 
 
