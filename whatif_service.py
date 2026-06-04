@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from parameters import PRESSURE_FEATURES
 from whatif_config import WhatIfRuntimeConfig, load_runtime_config
 from xgb_whatif import WhatIfOverrides, XGBWhatIfPredictor
 
@@ -91,7 +92,8 @@ class XGBWhatIfService:
         return lo, hi
 
     def to_internal_weather_offset(self, feature_name: str, display_offset: float) -> float:
-        scale = float(self.config.weather_offset_internal_scales.get(feature_name, 1.0))
+        default_scale = 100.0 if feature_name in PRESSURE_FEATURES else 1.0
+        scale = float(self.config.weather_offset_internal_scales.get(feature_name, default_scale))
         return float(display_offset) * scale
 
     def run_scenario(self, request: ScenarioRequest) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

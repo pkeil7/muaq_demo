@@ -14,7 +14,7 @@ import numpy as np
 import xarray as xr
 import xgboost as xgb
 
-from parameters import FEATURE_MAPPING, DEFAULT_WEATHER_FEATURES
+from parameters import FEATURE_MAPPING, DEFAULT_WEATHER_FEATURES, WIND_SPEED_FEATURES
 
 @dataclass
 class WhatIfOverrides:
@@ -105,6 +105,12 @@ class XGBWhatIfPredictor:
         for feat, scale in overrides.weather_scale.items():
             if feat in self.feature_index:
                 X[:, self.feature_index[feat]] = X[:, self.feature_index[feat]] * float(scale)
+
+        # Wind speed cannot be negative after any offset/scale transformations.
+        for feat in WIND_SPEED_FEATURES:
+            if feat in self.feature_index:
+                idx = self.feature_index[feat]
+                X[:, idx] = np.maximum(X[:, idx], 0.0)
 
         return X
 

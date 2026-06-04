@@ -23,7 +23,7 @@ from IPython.display import display
 from whatif_config import load_runtime_config
 from whatif_service import ScenarioRequest, XGBWhatIfService
 from xgb_whatif import XGBWhatIfPredictor
-from parameters import FEATURE_LABELS, WEATHER_OFFSET_UNITS, PRESSURE_FEATURES, TEMPERATURE_FEATURES
+from parameters import FEATURE_LABELS, WEATHER_OFFSET_UNITS, PRESSURE_FEATURES
 
 
 def feature_label(feature_name: str) -> str:
@@ -60,24 +60,17 @@ def build_weather_offset_ranges(
         unit = WEATHER_OFFSET_UNITS.get(feature, "")
 
         if feature in PRESSURE_FEATURES:
-            # Display pressure offsets in hPa but keep Pa in the model override.
-            display_min = float(np.rint(vmin / 100.0))
-            display_max = float(np.rint(vmax / 100.0))
+            # Pressure offsets are shown in hPa while underlying data is in Pa.
             scale_to_internal = 100.0
-        elif feature in TEMPERATURE_FEATURES:
-            # Display temperature in Celsius while retaining additive behavior internally.
-            display_min = float(np.rint(vmin - 273.15))
-            display_max = float(np.rint(vmax - 273.15))
-            scale_to_internal = 1.0
         else:
-            display_min = float(np.rint(vmin))
-            display_max = float(np.rint(vmax))
             scale_to_internal = 1.0
 
-        if display_max < display_min:
-            display_min, display_max = display_max, display_min
-
-        symmetric_bound = float(max(abs(display_min), abs(display_max)))
+        # Offset sliders should be centered at zero and based on data variability,
+        # not on absolute magnitudes (e.g. ~1013 hPa baseline pressure values).
+        span_internal = abs(vmax - vmin)
+        symmetric_bound = float(np.rint(span_internal / scale_to_internal))
+        if symmetric_bound < 1.0:
+            symmetric_bound = 1.0
         display_min = -symmetric_bound
         display_max = symmetric_bound
 
