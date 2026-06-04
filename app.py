@@ -16,38 +16,7 @@ import streamlit as st
 
 
 from whatif_service import ScenarioRequest, XGBWhatIfService
-
-
-FEATURE_LABELS = {
-    "mod": "Background NO2 concentrations",
-    "era5_blh": "Boundary layer height",
-    "era5l_t2m": "2 metre temperature",
-    "era5_t2m": "2 metre temperature",
-    "era5l_sp": "Surface pressure",
-    "era5_sp": "Surface pressure",
-    "era5l_rh": "Relative humidity",
-    "era5_rh": "Relative humidity",
-    "era5l_ws": "Wind speed",
-    "era5_ws": "Wind speed",
-    "era5l_wd": "Wind direction",
-    "era5_wd": "Wind direction",
-}
-
-PRESSURE_FEATURES = {"era5l_sp", "era5_sp"}
-TEMPERATURE_FEATURES = {"era5l_t2m", "era5_t2m"}
-WEATHER_OFFSET_UNITS = {
-    "era5_blh": "m",
-    "era5l_t2m": "C",
-    "era5_t2m": "C",
-    "era5l_sp": "hPa",
-    "era5_sp": "hPa",
-    "era5l_rh": "%",
-    "era5_rh": "%",
-    "era5l_ws": "m/s",
-    "era5_ws": "m/s",
-    "era5l_wd": "degrees",
-    "era5_wd": "degrees",
-}
+from parameters import FEATURE_LABELS, PRESSURE_FEATURES, TEMPERATURE_FEATURES, WEATHER_OFFSET_UNITS
 
 
 @st.cache_resource(show_spinner=False)

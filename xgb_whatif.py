@@ -1,10 +1,6 @@
 """Simple interactive what-if inference for gridded XGBoost NO2 predictions.
 
-v1 scope:
-- target variable is fixed to obs
-- ctm_residual logic is intentionally ignored
-- prediction uses float32 inputs for XGBoost
-- optional cache in float16 to reduce memory pressure
+Core of the package. Loads model and dataset, builds feature matrices, applies scenario overrides, and returns predictions.
 """
 
 from __future__ import annotations
@@ -18,43 +14,7 @@ import numpy as np
 import xarray as xr
 import xgboost as xgb
 
-# Hardcoded features. Needs to be adapted if this changes
-FEATURE_MAPPING = {
-    0: "mod",
-    1: "unixtime",
-    2: "hour",
-    3: "daytype",
-    4: "era5_blh",
-    5: "era5l_t2m",
-    6: "era5l_sp",
-    7: "era5l_rh",
-    8: "era5l_ws",
-    9: "era5l_wd",
-    10: "ghsl_urban_core",
-    11: "ghsl_population",
-    12: "ghsl_building_height",
-    13: "ghsl_building_volume",
-    14: "ghsl_built_surface",
-    15: "clc_category",
-    16: "clc_urban_distance",
-    17: "clc_industry_distance",
-    18: "clc_agriculture_distance",
-    19: "clc_vegetation_distance",
-    20: "clc_water_distance",
-    21: "osm_intersections",
-    22: "osm_major_distance",
-    23: "osm_residential_length",
-    24: "osm_residential_distance",
-}
-
-DEFAULT_WEATHER_FEATURES = (
-    "era5_blh",
-    "era5l_t2m",
-    "era5l_sp",
-    "era5l_rh",
-    "era5l_ws",
-    "era5l_wd",
-)
+from parameters import FEATURE_MAPPING, DEFAULT_WEATHER_FEATURES
 
 @dataclass
 class WhatIfOverrides:

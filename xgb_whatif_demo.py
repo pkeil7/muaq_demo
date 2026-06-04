@@ -23,34 +23,7 @@ from IPython.display import display
 from whatif_config import load_runtime_config
 from whatif_service import ScenarioRequest, XGBWhatIfService
 from xgb_whatif import XGBWhatIfPredictor
-
-
-FEATURE_LABELS = {
-    "mod": "Background NO2 concentrations",
-    "era5_blh": "Boundary layer height",
-    "era5l_t2m": "2 metre temperature",
-    "era5l_sp": "Surface pressure",
-    "era5l_rh": "Relative humidity",
-    "era5l_ws": "Wind speed",
-    "era5l_wd": "Wind direction",
-}
-
-PRESSURE_FEATURES = {"era5l_sp"}
-TEMPERATURE_FEATURES = {"era5l_t2m"}
-
-WEATHER_OFFSET_UNITS = {
-    "era5_blh": "m",
-    "era5l_t2m": "C",
-    "era5_t2m": "C",
-    "era5l_sp": "hPa",
-    "era5_sp": "hPa",
-    "era5l_rh": "%",
-    "era5_rh": "%",
-    "era5l_ws": "m/s",
-    "era5_ws": "m/s",
-    "era5l_wd": "degrees",
-    "era5_wd": "degrees",
-}
+from parameters import FEATURE_LABELS, WEATHER_OFFSET_UNITS, PRESSURE_FEATURES, TEMPERATURE_FEATURES
 
 
 def feature_label(feature_name: str) -> str:
