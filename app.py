@@ -365,7 +365,7 @@ def main() -> None:
     )
     st.markdown(
         """
-        <div style="position: fixed; right: 10px; bottom: 16px; z-index: 900; max-width: 290px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25; ">
+        <div style="position: fixed; right: 5px; bottom: 5px; z-index: 999; max-width: 290px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25; ">
             <strong>github.com/pkeil7/muaq_demo</strong><br>
         </div>
         """,
