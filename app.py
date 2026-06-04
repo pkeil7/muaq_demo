@@ -137,36 +137,115 @@ def weather_offset_bounds(service: XGBWhatIfService, feature_name: str) -> tuple
     return -bound, bound, unit
 
 
-def draw_maps(baseline: np.ndarray, scenario: np.ndarray, delta: np.ndarray) -> plt.Figure:
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5), constrained_layout=True)
+def _to_display_units(feature_name: str, values: np.ndarray) -> np.ndarray:
+    if feature_name in PRESSURE_FEATURES:
+        return values / 100.0
+    if feature_name in TEMPERATURE_FEATURES:
+        return values - 273.15
+    return values
+
+
+def weather_feature_maps(
+    service: XGBWhatIfService,
+    request: ScenarioRequest,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, str, str] | None:
+    if request.weather_feature is None or request.weather_feature == "none":
+        return None
+
+    feature_name = request.weather_feature
+    arr = service.predictor.ds[feature_name]
+    if "time" in arr.dims:
+        baseline_raw = arr.isel(time=int(request.time_index)).values
+    else:
+        baseline_raw = arr.values
+
+    baseline_raw = np.nan_to_num(baseline_raw, nan=0.0).astype(np.float32, copy=False)
+    internal_offset = service.to_internal_weather_offset(feature_name, request.weather_offset)
+    scenario_raw = (baseline_raw * float(request.weather_scale)) + float(internal_offset)
+
+    baseline_display = _to_display_units(feature_name, baseline_raw)
+    scenario_display = _to_display_units(feature_name, scenario_raw)
+    difference = baseline_display - scenario_display
+
+    label = feature_label(feature_name)
+    unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
+    return baseline_display, scenario_display, difference, label, unit
+
+
+def draw_maps(
+    baseline: np.ndarray,
+    scenario: np.ndarray,
+    difference: np.ndarray,
+    weather_maps: tuple[np.ndarray, np.ndarray, np.ndarray, str, str] | None = None,
+) -> plt.Figure:
+    nrows = 2 if weather_maps is not None else 1
+    fig, axes = plt.subplots(nrows, 3, figsize=(16, 5 * nrows), constrained_layout=True)
+    if nrows == 1:
+        axes = np.array([axes])
 
     vmin = float(min(np.nanmin(baseline), np.nanmin(scenario)))
     vmax = float(max(np.nanmax(baseline), np.nanmax(scenario)))
-    dmax = float(np.nanmax(np.abs(delta)))
+    dmax = float(np.nanmax(np.abs(difference)))
     if dmax == 0.0:
         dmax = 1.0
 
-    im0 = axes[0].imshow(baseline, origin="lower", vmin=vmin, vmax=vmax, cmap="viridis")
-    axes[0].set_title("Baseline")
-    axes[0].invert_yaxis()
-    axes[0].set_xticks([])
-    axes[0].set_yticks([])
-    fig.colorbar(im0, ax=axes[0], shrink=0.8)
+    im0 = axes[0, 0].imshow(baseline, origin="lower", vmin=vmin, vmax=vmax, cmap="viridis")
+    axes[0, 0].set_title("NO2 Baseline")
+    axes[0, 0].invert_yaxis()
+    axes[0, 0].set_xticks([])
+    axes[0, 0].set_yticks([])
+    fig.colorbar(im0, ax=axes[0, 0], shrink=0.8)
 
-    im1 = axes[1].imshow(scenario, origin="lower", vmin=vmin, vmax=vmax, cmap="viridis")
-    axes[1].set_title("Scenario")
-    axes[1].invert_yaxis()
-    axes[1].set_xticks([])
-    axes[1].set_yticks([])
-    fig.colorbar(im1, ax=axes[1], shrink=0.8)
+    im1 = axes[0, 1].imshow(scenario, origin="lower", vmin=vmin, vmax=vmax, cmap="viridis")
+    axes[0, 1].set_title("NO2 Scenario")
+    axes[0, 1].invert_yaxis()
+    axes[0, 1].set_xticks([])
+    axes[0, 1].set_yticks([])
+    fig.colorbar(im1, ax=axes[0, 1], shrink=0.8)
 
-    im2 = axes[2].imshow(delta, origin="lower", vmin=-dmax, vmax=dmax, cmap="RdBu_r")
-    axes[2].set_title("Delta (scenario - baseline)")
-    axes[2].invert_yaxis()
-    axes[2].set_xticks([])
-    axes[2].set_yticks([])
-    cbar2 = fig.colorbar(im2, ax=axes[2], shrink=0.8)
+    im2 = axes[0, 2].imshow(difference, origin="lower", vmin=-dmax, vmax=dmax, cmap="RdBu_r")
+    axes[0, 2].set_title("Difference (baseline - scenario)")
+    axes[0, 2].invert_yaxis()
+    axes[0, 2].set_xticks([])
+    axes[0, 2].set_yticks([])
+    cbar2 = fig.colorbar(im2, ax=axes[0, 2], shrink=0.8)
     cbar2.set_label(r"$NO_2 / \mu g m^{-3}$")
+
+    if weather_maps is not None:
+        weather_baseline, weather_scenario, weather_difference, weather_label, weather_unit = weather_maps
+
+        w_vmin = float(min(np.nanmin(weather_baseline), np.nanmin(weather_scenario)))
+        w_vmax = float(max(np.nanmax(weather_baseline), np.nanmax(weather_scenario)))
+        w_dmax = float(np.nanmax(np.abs(weather_difference)))
+        if w_dmax == 0.0:
+            w_dmax = 1.0
+
+        im3 = axes[1, 0].imshow(weather_baseline, origin="lower", vmin=w_vmin, vmax=w_vmax, cmap="viridis")
+        axes[1, 0].set_title(f"{weather_label} Baseline")
+        axes[1, 0].invert_yaxis()
+        axes[1, 0].set_xticks([])
+        axes[1, 0].set_yticks([])
+        cbar3 = fig.colorbar(im3, ax=axes[1, 0], shrink=0.8)
+        if weather_unit:
+            cbar3.set_label(weather_unit)
+
+        im4 = axes[1, 1].imshow(weather_scenario, origin="lower", vmin=w_vmin, vmax=w_vmax, cmap="viridis")
+        axes[1, 1].set_title(f"{weather_label} Scenario")
+        axes[1, 1].invert_yaxis()
+        axes[1, 1].set_xticks([])
+        axes[1, 1].set_yticks([])
+        cbar4 = fig.colorbar(im4, ax=axes[1, 1], shrink=0.8)
+        if weather_unit:
+            cbar4.set_label(weather_unit)
+
+        im5 = axes[1, 2].imshow(weather_difference, origin="lower", vmin=-w_dmax, vmax=w_dmax, cmap="RdBu_r")
+        axes[1, 2].set_title("Difference (baseline - scenario)")
+        axes[1, 2].invert_yaxis()
+        axes[1, 2].set_xticks([])
+        axes[1, 2].set_yticks([])
+        cbar5 = fig.colorbar(im5, ax=axes[1, 2], shrink=0.8)
+        if weather_unit:
+            cbar5.set_label(weather_unit)
 
     return fig
 
@@ -258,22 +337,24 @@ def main() -> None:
         weather_scale=float(weather_scale),
     )
 
-    baseline, scenario, delta = service.run_scenario(request)
+    baseline, scenario, _ = service.run_scenario(request)
+    difference = baseline - scenario
+    weather_maps = weather_feature_maps(service, request)
 
-    fig = draw_maps(baseline, scenario, delta)
+    fig = draw_maps(baseline, scenario, difference, weather_maps=weather_maps)
     st.pyplot(fig, clear_figure=True)
 
     diagnostics = {
-        "min": float(np.nanmin(delta)),
-        "mean": float(np.nanmean(delta)),
-        "max": float(np.nanmax(delta)),
-        "p05": float(np.nanpercentile(delta, 5)),
-        "p95": float(np.nanpercentile(delta, 95)),
+        "min": float(np.nanmin(difference)),
+        "mean": float(np.nanmean(difference)),
+        "max": float(np.nanmax(difference)),
+        "p05": float(np.nanpercentile(difference, 5)),
+        "p95": float(np.nanpercentile(difference, 95)),
     }
     st.markdown(
         """
         <div style="max-width: 290px; margin-top: -6px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25;">
-            <strong>Delta diagnostics</strong><br>
+            <strong>Difference diagnostics (baseline - scenario)</strong><br>
             min: {min:.3f}<br>
             mean: {mean:.3f}<br>
             max: {max:.3f}<br>
