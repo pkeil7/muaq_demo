@@ -198,6 +198,9 @@ def launch_simple_whatif(
         layout=widgets.Layout(width="400px", min_width="300px"),
         style=label_style,
     )
+    if not runtime_config.weather_scale_enabled:
+        weather_scale.disabled = True
+        weather_scale.layout.display = "none"
     weather_offset_unit = widgets.HTML(value="", layout=widgets.Layout(width="80px"))
 
     output = widgets.Output()
@@ -258,7 +261,7 @@ def launch_simple_whatif(
             mod_scale=float(mod_scale.value),
             weather_feature=None if selected_weather == "none" else selected_weather,
             weather_offset=float(weather_offset.value),
-            weather_scale=float(weather_scale.value),
+            weather_scale=float(weather_scale.value) if runtime_config.weather_scale_enabled else 1.0,
         )
         baseline, scenario, delta = service.run_scenario(request)
 

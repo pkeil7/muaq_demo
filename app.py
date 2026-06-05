@@ -12,10 +12,21 @@ from urllib.request import Request, urlopen
 import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
+from matplotlib.lines import Line2D
 
 
 from whatif_service import ScenarioRequest, XGBWhatIfService
-from parameters import FEATURE_LABELS, PRESSURE_FEATURES, TEMPERATURE_FEATURES, WEATHER_OFFSET_UNITS
+from parameters import (
+    FEATURE_LABELS,
+    PRESSURE_FEATURES,
+    TEMPERATURE_FEATURES,
+    WEATHER_OFFSET_UNITS,
+    WIND_DIRECTION_FEATURES,
+)
+
+
+OFFSET_SLIDER_MIN = -180.0
+OFFSET_SLIDER_MAX = 180.0
 
 
 @st.cache_resource(show_spinner=False)
@@ -139,6 +150,10 @@ def weather_offset_bounds(service: XGBWhatIfService, feature_name: str) -> tuple
     configured = service.weather_offset_bounds(feature_name)
     if configured is not None:
         lo, hi = configured
+        lo = max(float(lo), OFFSET_SLIDER_MIN)
+        hi = min(float(hi), OFFSET_SLIDER_MAX)
+        if hi < lo:
+            lo, hi = OFFSET_SLIDER_MIN, OFFSET_SLIDER_MAX
         unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
         return float(lo), float(hi), unit
 
@@ -154,6 +169,7 @@ def weather_offset_bounds(service: XGBWhatIfService, feature_name: str) -> tuple
         vmax -= 273.15
 
     bound = float(max(abs(np.rint(vmin)), abs(np.rint(vmax))))
+    bound = min(bound, OFFSET_SLIDER_MAX)
     unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
     return -bound, bound, unit
 
@@ -163,13 +179,22 @@ def _to_display_units(feature_name: str, values: np.ndarray) -> np.ndarray:
         return values / 100.0
     if feature_name in TEMPERATURE_FEATURES:
         return values - 273.15
+    if feature_name in WIND_DIRECTION_FEATURES:
+        return np.mod(values, 360.0)
     return values
+
+
+def _circular_mean_degrees(values: np.ndarray) -> float:
+    radians = np.deg2rad(np.mod(values, 360.0))
+    mean_sin = float(np.nanmean(np.sin(radians)))
+    mean_cos = float(np.nanmean(np.cos(radians)))
+    return float((np.rad2deg(np.arctan2(mean_sin, mean_cos)) + 360.0) % 360.0)
 
 
 def weather_feature_maps(
     service: XGBWhatIfService,
     request: ScenarioRequest,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, str, str] | None:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, str, str, float | None, float | None] | None:
     if request.weather_feature is None or request.weather_feature == "none":
         return None
 
@@ -183,21 +208,36 @@ def weather_feature_maps(
     baseline_raw = np.nan_to_num(baseline_raw, nan=0.0).astype(np.float32, copy=False)
     internal_offset = service.to_internal_weather_offset(feature_name, request.weather_offset)
     scenario_raw = (baseline_raw * float(request.weather_scale)) + float(internal_offset)
+    if feature_name in WIND_DIRECTION_FEATURES:
+        scenario_raw = np.mod(scenario_raw, 360.0)
 
     baseline_display = _to_display_units(feature_name, baseline_raw)
     scenario_display = _to_display_units(feature_name, scenario_raw)
     difference = scenario_display - baseline_display
+    mean_baseline_wind_direction = None
+    mean_scenario_wind_direction = None
+    if feature_name in WIND_DIRECTION_FEATURES:
+        mean_baseline_wind_direction = _circular_mean_degrees(baseline_display)
+        mean_scenario_wind_direction = _circular_mean_degrees(scenario_display)
 
     label = feature_label(feature_name)
     unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
-    return baseline_display, scenario_display, difference, label, unit
+    return (
+        baseline_display,
+        scenario_display,
+        difference,
+        label,
+        unit,
+        mean_baseline_wind_direction,
+        mean_scenario_wind_direction,
+    )
 
 
 def draw_maps(
     baseline: np.ndarray,
     scenario: np.ndarray,
     difference: np.ndarray,
-    weather_maps: tuple[np.ndarray, np.ndarray, np.ndarray, str, str] | None = None,
+    weather_maps: tuple[np.ndarray, np.ndarray, np.ndarray, str, str, float | None, float | None] | None = None,
 ) -> plt.Figure:
     nrows = 2 if weather_maps is not None else 1
     fig, axes = plt.subplots(nrows, 3, figsize=(16, 5 * nrows), constrained_layout=True)
@@ -233,7 +273,15 @@ def draw_maps(
     cbar2.set_label(r"$NO_2 / \mu g m^{-3}$")
 
     if weather_maps is not None:
-        weather_baseline, weather_scenario, weather_difference, weather_label, weather_unit = weather_maps
+        (
+            weather_baseline,
+            weather_scenario,
+            weather_difference,
+            weather_label,
+            weather_unit,
+            wind_dir_baseline_mean,
+            wind_dir_scenario_mean,
+        ) = weather_maps
 
         w_vmin = float(min(np.nanmin(weather_baseline), np.nanmin(weather_scenario)))
         w_vmax = float(max(np.nanmax(weather_baseline), np.nanmax(weather_scenario)))
@@ -255,7 +303,61 @@ def draw_maps(
         if weather_unit:
             cbar4.set_label(weather_unit)
 
-        axes[1, 2].axis("off")
+        if wind_dir_baseline_mean is not None and wind_dir_scenario_mean is not None:
+            # Meteorological convention: 0 deg is north-to-south, 90 deg is east-to-west.
+            # For plotting the flow arrow, use the downwind direction.
+            theta_baseline = np.deg2rad(float(wind_dir_baseline_mean))
+            u_baseline = -float(np.sin(theta_baseline))
+            v_baseline = -float(np.cos(theta_baseline))
+
+            theta_scenario = np.deg2rad(float(wind_dir_scenario_mean))
+            u_scenario = -float(np.sin(theta_scenario))
+            v_scenario = -float(np.cos(theta_scenario))
+
+            axes[1, 2].set_title("Mean Wind Direction")
+            axes[1, 2].set_xlim(-1.1, 1.1)
+            axes[1, 2].set_ylim(-1.1, 1.1)
+            axes[1, 2].set_aspect("equal", adjustable="box")
+            axes[1, 2].axhline(0.0, color="0.9", linewidth=1.0)
+            axes[1, 2].axvline(0.0, color="0.9", linewidth=1.0)
+            axes[1, 2].quiver(
+                0.0,
+                0.0,
+                u_baseline,
+                v_baseline,
+                angles="xy",
+                scale_units="xy",
+                scale=1.0,
+                width=0.02,
+                color="tab:blue",
+            )
+            axes[1, 2].quiver(
+                0.0,
+                0.0,
+                u_scenario,
+                v_scenario,
+                angles="xy",
+                scale_units="xy",
+                scale=1.0,
+                width=0.02,
+                color="tab:red",
+            )
+            legend_handles = [
+                Line2D([0], [0], color="tab:blue", lw=2, label="Baseline mean"),
+                Line2D([0], [0], color="tab:red", lw=2, label="Scenario mean"),
+            ]
+            axes[1, 2].legend(handles=legend_handles, loc="upper right", frameon=True)
+            axes[1, 2].text(
+                0.0,
+                -1.05,
+                f"baseline mean: {wind_dir_baseline_mean:.1f} deg\nscenario mean: {wind_dir_scenario_mean:.1f} deg",
+                ha="center",
+                va="bottom",
+            )
+            axes[1, 2].set_xticks([])
+            axes[1, 2].set_yticks([])
+        else:
+            axes[1, 2].axis("off")
 
     return fig
 
@@ -310,8 +412,8 @@ def main() -> None:
     st.sidebar.markdown(r"Background NO2 Difference ($\mu g\, /\, m^{3}$)")
     mod_offset = st.sidebar.slider(
         "Background NO2 Difference",
-        min_value=float(cfg.mod_offset_min),
-        max_value=float(cfg.mod_offset_max),
+        min_value=max(float(cfg.mod_offset_min), OFFSET_SLIDER_MIN),
+        max_value=min(float(cfg.mod_offset_max), OFFSET_SLIDER_MAX),
         value=0.0,
         step=0.5,
         label_visibility="collapsed",
@@ -342,13 +444,16 @@ def main() -> None:
             value=0.0,
             step=1.0,
         )
-        weather_scale = st.sidebar.slider(
-            f"{weather_name} multiplied by",
-            min_value=float(cfg.weather_scale_min),
-            max_value=float(cfg.weather_scale_max),
-            value=1.0,
-            step=0.01,
-        )
+        if cfg.weather_scale_enabled:
+            weather_scale = st.sidebar.slider(
+                f"{weather_name} multiplied by",
+                min_value=float(cfg.weather_scale_min),
+                max_value=float(cfg.weather_scale_max),
+                value=1.0,
+                step=0.01,
+            )
+        else:
+            weather_scale = 1.0
 
     request = ScenarioRequest(
         time_index=time_index,

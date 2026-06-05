@@ -9,10 +9,11 @@
     "era5l_ws",
     "era5l_wd"
   ],
-  "mod_offset_min": -30.0,
-  "mod_offset_max": 30.0,
+  "mod_offset_min": -180.0,
+  "mod_offset_max": 180.0,
   "mod_scale_min": 0.5,
   "mod_scale_max": 1.5,
+  "weather_scale_enabled": false,
   "weather_scale_min": 0.5,
   "weather_scale_max": 1.5,
   "weather_offset_bounds": {},

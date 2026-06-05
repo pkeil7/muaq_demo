@@ -19,6 +19,10 @@ from whatif_config import WhatIfRuntimeConfig, load_runtime_config
 from xgb_whatif import WhatIfOverrides, XGBWhatIfPredictor
 
 
+OFFSET_MIN = -180.0
+OFFSET_MAX = 180.0
+
+
 @dataclass
 class ScenarioRequest:
     """Single what-if scenario request in display-space units."""
@@ -101,11 +105,13 @@ class XGBWhatIfService:
         weather_scale = {}
 
         if request.weather_feature is not None and request.weather_feature != "none":
+            clamped_offset = float(np.clip(float(request.weather_offset), OFFSET_MIN, OFFSET_MAX))
             weather_offset[request.weather_feature] = self.to_internal_weather_offset(
                 request.weather_feature,
-                request.weather_offset,
+                clamped_offset,
             )
-            weather_scale[request.weather_feature] = float(request.weather_scale)
+            if self.config.weather_scale_enabled:
+                weather_scale[request.weather_feature] = float(request.weather_scale)
 
         overrides = WhatIfOverrides(
             mod_offset=float(request.mod_offset),

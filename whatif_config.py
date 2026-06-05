@@ -24,6 +24,7 @@ class WhatIfRuntimeConfig:
     mod_offset_max: float = 30.0
     mod_scale_min: float = 0.5
     mod_scale_max: float = 1.5
+    weather_scale_enabled: bool = False
     weather_scale_min: float = 0.5
     weather_scale_max: float = 1.5
 
@@ -45,6 +46,7 @@ class WhatIfRuntimeConfig:
             mod_offset_max=float(payload.get("mod_offset_max", 30.0)),
             mod_scale_min=float(payload.get("mod_scale_min", 0.5)),
             mod_scale_max=float(payload.get("mod_scale_max", 1.5)),
+            weather_scale_enabled=bool(payload.get("weather_scale_enabled", False)),
             weather_scale_min=float(payload.get("weather_scale_min", 0.5)),
             weather_scale_max=float(payload.get("weather_scale_max", 1.5)),
             weather_offset_bounds=dict(payload.get("weather_offset_bounds", {})),
@@ -71,6 +73,7 @@ class WhatIfRuntimeConfig:
             "mod_offset_max": self.mod_offset_max,
             "mod_scale_min": self.mod_scale_min,
             "mod_scale_max": self.mod_scale_max,
+            "weather_scale_enabled": self.weather_scale_enabled,
             "weather_scale_min": self.weather_scale_min,
             "weather_scale_max": self.weather_scale_max,
             "weather_offset_bounds": self.weather_offset_bounds,

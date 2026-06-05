@@ -50,6 +50,7 @@ FEATURE_LABELS = {
 PRESSURE_FEATURES = {"era5l_sp"}
 TEMPERATURE_FEATURES = {"era5l_t2m"}
 WIND_SPEED_FEATURES = {"era5l_ws"}
+WIND_DIRECTION_FEATURES = {"era5l_wd"}
 
 WEATHER_OFFSET_UNITS = {
     "era5_blh": "m",

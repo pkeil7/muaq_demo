@@ -158,5 +158,6 @@ Edit `whatif_runtime_config.json` to set:
 - `default_model_path`
 - `default_grid_data_path`
 - optional feature allowlist (`selectable_weather_features`)
+- weather multiplication toggle (`weather_scale_enabled`, default `false`)
 - UI bounds (`mod_*`, `weather_scale_*`, optional `weather_offset_bounds`)
 - display->internal unit conversion (`weather_offset_internal_scales`)
