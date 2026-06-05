@@ -16,13 +16,11 @@ Find the streamlit app here: `https://muaq-demo-openday.streamlit.app/`
 
 ## Notebook Usage
 
-From `notebooks/interactive_demo.ipynb` (or any notebook under `notebooks/`):
-
 ```python
 import sys
 sys.path.append("..")
 
-from interactive_demo.xgb_whatif_demo import launch_simple_whatif
+from xgb_whatif_demo import launch_simple_whatif
 ```
 
 Launch with explicit paths:
@@ -37,7 +35,7 @@ launch_simple_whatif(
 Or launch via runtime config defaults:
 
 ```python
-launch_simple_whatif(runtime_config_path="../interactive_demo/whatif_runtime_config.json")
+launch_simple_whatif(runtime_config_path="whatif_runtime_config.json")
 ```
 
 ## Service Usage (Streamlit/Backend)
@@ -45,12 +43,12 @@ launch_simple_whatif(runtime_config_path="../interactive_demo/whatif_runtime_con
 Use the service layer directly for app code:
 
 ```python
-from interactive_demo.whatif_service import XGBWhatIfService, ScenarioRequest
+from whatif_service import XGBWhatIfService, ScenarioRequest
 
 service = XGBWhatIfService.from_paths(
     model_path="/path/to/model",
     grid_data_path="/path/to/grid_data.nc",
-    config_path="interactive_demo/whatif_runtime_config.json",
+    config_path="whatif_runtime_config.json",
 )
 
 request = ScenarioRequest(
@@ -69,7 +67,7 @@ baseline, scenario, delta = service.run_scenario(request)
 Or use config-defined default paths:
 
 ```python
-service = XGBWhatIfService.from_config("interactive_demo/whatif_runtime_config.json")
+service = XGBWhatIfService.from_config("whatif_runtime_config.json")
 ```
 
 ## Streamlit App
@@ -77,7 +75,7 @@ service = XGBWhatIfService.from_config("interactive_demo/whatif_runtime_config.j
 Run on localhost:
 
 ```bash
-streamlit run interactive_demo/app.py --server.address 0.0.0.0 --server.port 8501
+streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
 Then open from another machine on the same network:
@@ -108,26 +106,26 @@ If others still cannot connect, verify:
 
 For the simplest public sharing, use Streamlit Community Cloud.
 
-Set these fields in `interactive_demo/whatif_runtime_config.json` for deployment:
+Set these fields in `whatif_runtime_config.json` for deployment:
 
 - `default_model_path`: `SpatialFullSet`
-- `default_grid_data_path`: `interactive_demo/demo_subset.nc`
+- `default_grid_data_path`: `demo_subset.nc`
 
 ### Streamlit Community Cloud steps
 
 1. Push this repository to GitHub.
 2. Open Streamlit Community Cloud and create a new app from your repo.
 3. Set:
-     - Main file path: `interactive_demo/app.py`
+     - Main file path: `app.py`
      - Python version: `3.10`
-     - Requirements file: `interactive_demo/requirements_streamlit_cloud.txt`
+     - Requirements file: `requirements_streamlit_cloud.txt`
 4. Deploy.
 
 After deploy, share the generated public app URL.
 
 ### Startup NetCDF Download (Python)
 
-`interactive_demo/app.py` now checks whether `default_grid_data_path` exists locally.
+`app.py` now checks whether `default_grid_data_path` exists locally.
 If missing, it downloads the file at startup using Python (`urllib`) and writes it
 to that configured local path.
 
@@ -148,7 +146,7 @@ Keep `default_grid_data_path` in `whatif_runtime_config.json` as the local
 destination path where the file should be cached (for example,
 `demo_data/demo_subset_30km_1week.nc`).
 
-Before launching, set these fields in `interactive_demo/whatif_runtime_config.json`:
+Before launching, set these fields in `whatif_runtime_config.json`:
 
 - `default_model_path`
 - `default_grid_data_path`
