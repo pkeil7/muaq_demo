@@ -49,7 +49,8 @@ class XGBWhatIfPredictor:
         self.nx = int(self.ds.sizes["x"])
 
         self.selected_features = list(FEATURE_MAPPING.values())
-        self.feature_index = list(FEATURE_MAPPING.keys())
+        # Map feature name -> matrix column index for fast, correct override lookup.
+        self.feature_index = {feature_name: idx for idx, feature_name in enumerate(self.selected_features)}
         # check that all selected features are present in the dataset
         missing = [feat for feat in self.selected_features if feat not in self.ds.data_vars]
         if missing:
