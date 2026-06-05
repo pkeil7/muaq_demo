@@ -36,8 +36,17 @@ class WhatIfRuntimeConfig:
     # Example: pressure in hPa display but Pa internal -> 100.0
     weather_offset_internal_scales: dict[str, float] = field(default_factory=dict)
 
+    # Box in grid-index coordinates [y0, y1, x0, x1], end-exclusive.
+    # This region is used for city-centre land-cover what-if scenarios.
+    city_centre_box_indices: list[int] | None = None
+
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "WhatIfRuntimeConfig":
+        raw_city_centre_box = payload.get("city_centre_box_indices")
+        city_centre_box_indices: list[int] | None = None
+        if isinstance(raw_city_centre_box, list) and len(raw_city_centre_box) == 4:
+            city_centre_box_indices = [int(v) for v in raw_city_centre_box]
+
         return cls(
             default_model_path=payload.get("default_model_path"),
             default_grid_data_path=payload.get("default_grid_data_path"),
@@ -53,6 +62,7 @@ class WhatIfRuntimeConfig:
             weather_offset_internal_scales={
                 k: float(v) for k, v in dict(payload.get("weather_offset_internal_scales", {})).items()
             },
+            city_centre_box_indices=city_centre_box_indices,
         )
 
     @classmethod
@@ -78,6 +88,7 @@ class WhatIfRuntimeConfig:
             "weather_scale_max": self.weather_scale_max,
             "weather_offset_bounds": self.weather_offset_bounds,
             "weather_offset_internal_scales": self.weather_offset_internal_scales,
+            "city_centre_box_indices": self.city_centre_box_indices,
         }
 
 

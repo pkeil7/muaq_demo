@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
 
 from whatif_service import ScenarioRequest, XGBWhatIfService
@@ -233,11 +234,33 @@ def weather_feature_maps(
     )
 
 
+def city_centre_box_indices_for_service(service: XGBWhatIfService) -> tuple[int, int, int, int]:
+    # Compatibility path for older cached service instances that predate this method.
+    if hasattr(service, "city_centre_box_indices"):
+        return service.city_centre_box_indices()
+
+    ny = int(service.predictor.ny)
+    nx = int(service.predictor.nx)
+    configured = getattr(service.config, "city_centre_box_indices", None)
+    if isinstance(configured, list) and len(configured) == 4:
+        y0, y1, x0, x1 = [int(v) for v in configured]
+    else:
+        y0, y1 = ny // 4, (3 * ny) // 4
+        x0, x1 = nx // 4, (3 * nx) // 4
+
+    y0 = max(0, min(y0, ny))
+    y1 = max(y0, min(y1, ny))
+    x0 = max(0, min(x0, nx))
+    x1 = max(x0, min(x1, nx))
+    return y0, y1, x0, x1
+
+
 def draw_maps(
     baseline: np.ndarray,
     scenario: np.ndarray,
     difference: np.ndarray,
     weather_maps: tuple[np.ndarray, np.ndarray, np.ndarray, str, str, float | None, float | None] | None = None,
+    scenario_box_indices: tuple[int, int, int, int] | None = None,
 ) -> plt.Figure:
     nrows = 2 if weather_maps is not None else 1
     fig, axes = plt.subplots(nrows, 3, figsize=(16, 5 * nrows), constrained_layout=True)
@@ -271,6 +294,18 @@ def draw_maps(
     axes[0, 2].set_yticks([])
     cbar2 = fig.colorbar(im2, ax=axes[0, 2], shrink=0.8)
     cbar2.set_label(r"$NO_2 / \mu g m^{-3}$")
+
+    if scenario_box_indices is not None:
+        y0, y1, x0, x1 = scenario_box_indices
+        axes[0, 1].add_patch(Rectangle(
+            (x0 - 0.5, y0 - 0.5),
+            max(x1 - x0, 1),
+            max(y1 - y0, 1),
+            fill=False,
+            edgecolor="black",
+            linewidth=2.0,
+            linestyle="--",
+        ))
 
     if weather_maps is not None:
         (
@@ -409,6 +444,8 @@ def main() -> None:
     auto_hour = selected_hour(service, time_index)
     scenario_hour = st.sidebar.slider("scenario hour", min_value=0, max_value=23, value=auto_hour)
 
+    st.sidebar.header("Change the background NO2")
+
     cfg = service.config
     st.sidebar.markdown(r"Background NO2 Difference ($\mu g\, /\, m^{3}$)")
     mod_offset = st.sidebar.slider(
@@ -420,15 +457,17 @@ def main() -> None:
         label_visibility="collapsed",
     )
 
+    st.sidebar.header("Change the weather")
     weather_features = service.available_weather_features()
-    weather_choices = ["none"] + weather_features
+    weather_choices = ["select_one"] + weather_features
     selected_weather = st.sidebar.selectbox(
         "weather variable",
         options=weather_choices,
-        format_func=lambda x: "none" if x == "none" else feature_label(x),
+        index=0,
+        format_func=lambda x: "Select One" if x == "select_one" else feature_label(x),
     )
 
-    if selected_weather == "none":
+    if selected_weather == "select_one":
         weather_offset = 0.0
         weather_scale = 1.0
         weather_unit = ""
@@ -456,20 +495,67 @@ def main() -> None:
         else:
             weather_scale = 1.0
 
+    industry_options = {
+        "Select One": None,
+        "Industry everywhere": 0.0,
+        "Next industry at least 20 km away": 20000.0,
+    }
+    st.sidebar.header("Industry Effect on NO2")
+    st.sidebar.markdown("Remove industry everywhere or put industry everywhere!")
+    selected_industry_label = st.sidebar.selectbox(
+        "Industry",
+        options=list(industry_options.keys()),
+        index=0,
+    )
+    industry_distance = industry_options[selected_industry_label]
+
+    city_centre_landcover_options = {
+        "Select One": None,
+        "Forest": 3,
+        "Water": 5,
+        "Field": 4,
+    }
+    st.sidebar.header("Change Land Cover")
+    st.sidebar.markdown("Plant a forest or a field in the city centre, or flood it with water to see the effect on NO2 pollution! Roads still go through the forest/field or over water.")
+    selected_city_centre_landcover_label = st.sidebar.selectbox(
+        "Change Land Cover",
+        options=list(city_centre_landcover_options.keys()),
+        index=0,
+    )
+    city_centre_landcover = city_centre_landcover_options[selected_city_centre_landcover_label]
+
     request = ScenarioRequest(
         time_index=time_index,
         hour_override=int(scenario_hour),
         mod_offset=float(mod_offset),
         mod_scale=1.0,
-        weather_feature=None if selected_weather == "none" else selected_weather,
+        weather_feature=None if selected_weather == "select_one" else selected_weather,
         weather_offset=float(weather_offset),
         weather_scale=float(weather_scale),
+        industry_distance=None if industry_distance is None else float(industry_distance),
+        city_centre_landcover=None if city_centre_landcover is None else int(city_centre_landcover),
     )
 
     baseline, scenario, difference = service.run_scenario(request)
     weather_maps = weather_feature_maps(service, request)
 
-    fig = draw_maps(baseline, scenario, difference, weather_maps=weather_maps)
+    scenario_box_indices = None
+    if city_centre_landcover is not None:
+        scenario_box_indices = city_centre_box_indices_for_service(service)
+
+    st.caption(f"Industry scenario: {selected_industry_label}")
+    st.caption(f"City centre box scenario: {selected_city_centre_landcover_label}")
+    if scenario_box_indices is not None:
+        y0, y1, x0, x1 = scenario_box_indices
+        st.caption(f"City centre box indices [y0:y1, x0:x1] = [{y0}:{y1}, {x0}:{x1}]")
+
+    fig = draw_maps(
+        baseline,
+        scenario,
+        difference,
+        weather_maps=weather_maps,
+        scenario_box_indices=scenario_box_indices,
+    )
     st.pyplot(fig, clear_figure=True)
 
     diagnostics = {

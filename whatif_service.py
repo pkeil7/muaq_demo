@@ -34,6 +34,8 @@ class ScenarioRequest:
     weather_feature: str | None = None
     weather_offset: float = 0.0
     weather_scale: float = 1.0
+    industry_distance: float | None = None
+    city_centre_landcover: int | None = None
 
 
 class XGBWhatIfService:
@@ -100,9 +102,30 @@ class XGBWhatIfService:
         scale = float(self.config.weather_offset_internal_scales.get(feature_name, default_scale))
         return float(display_offset) * scale
 
+    def city_centre_box_indices(self) -> tuple[int, int, int, int]:
+        ny = int(self.predictor.ny)
+        nx = int(self.predictor.nx)
+
+        configured = self.config.city_centre_box_indices
+        if configured is not None and len(configured) == 4:
+            y0, y1, x0, x1 = [int(v) for v in configured]
+        else:
+            # Fallback: central quarter of the grid.
+            y0, y1 = ny // 4, (3 * ny) // 4
+            x0, x1 = nx // 4, (3 * nx) // 4
+
+        y0 = max(0, min(y0, ny))
+        y1 = max(y0, min(y1, ny))
+        x0 = max(0, min(x0, nx))
+        x1 = max(x0, min(x1, nx))
+        return y0, y1, x0, x1
+
     def run_scenario(self, request: ScenarioRequest) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         weather_offset = {}
         weather_scale = {}
+        feature_set = {}
+        box_feature_set = {}
+        box_indices = None
 
         if request.weather_feature is not None and request.weather_feature != "none":
             clamped_offset = float(np.clip(float(request.weather_offset), OFFSET_MIN, OFFSET_MAX))
@@ -113,12 +136,34 @@ class XGBWhatIfService:
             if self.config.weather_scale_enabled:
                 weather_scale[request.weather_feature] = float(request.weather_scale)
 
+        if request.industry_distance is not None:
+            feature_set["clc_industry_distance"] = float(request.industry_distance)
+
+        if request.city_centre_landcover is not None:
+            box_indices = self.city_centre_box_indices()
+            landcover_value = int(request.city_centre_landcover)
+            box_feature_set["clc_category"] = float(landcover_value)
+
+            if landcover_value == 3:
+                box_feature_set["clc_vegetation_distance"] = 0.0
+            elif landcover_value == 4:
+                box_feature_set["clc_agriculture_distance"] = 0.0
+            elif landcover_value == 5:
+                box_feature_set["clc_water_distance"] = 0.0
+
+            for feat in self.predictor.selected_features:
+                if feat.startswith("ghsl_") and feat != "ghsl_urban_core":
+                    box_feature_set[feat] = 0.0
+
         overrides = WhatIfOverrides(
             mod_offset=float(request.mod_offset),
             mod_scale=float(request.mod_scale),
             hour_override=request.hour_override,
             weather_offset=weather_offset,
             weather_scale=weather_scale,
+            feature_set=feature_set,
+            box_indices=box_indices,
+            box_feature_set=box_feature_set,
         )
 
         baseline, scenario = self.predictor.predict_baseline_and_scenario(

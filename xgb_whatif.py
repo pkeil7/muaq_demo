@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 import os
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import xarray as xr
@@ -25,6 +25,9 @@ class WhatIfOverrides:
     hour_override: Optional[int] = None
     weather_offset: Dict[str, float] = field(default_factory=dict)
     weather_scale: Dict[str, float] = field(default_factory=dict)
+    feature_set: Dict[str, float] = field(default_factory=dict)
+    box_indices: Optional[Tuple[int, int, int, int]] = None
+    box_feature_set: Dict[str, float] = field(default_factory=dict)
 
 
 class XGBWhatIfPredictor:
@@ -106,6 +109,25 @@ class XGBWhatIfPredictor:
         for feat, scale in overrides.weather_scale.items():
             if feat in self.feature_index:
                 X[:, self.feature_index[feat]] = X[:, self.feature_index[feat]] * float(scale)
+
+        for feat, value in overrides.feature_set.items():
+            if feat in self.feature_index:
+                X[:, self.feature_index[feat]] = float(value)
+
+        if overrides.box_indices is not None and overrides.box_feature_set:
+            y0, y1, x0, x1 = overrides.box_indices
+            y0 = max(0, min(int(y0), self.ny))
+            y1 = max(y0, min(int(y1), self.ny))
+            x0 = max(0, min(int(x0), self.nx))
+            x1 = max(x0, min(int(x1), self.nx))
+            if y1 > y0 and x1 > x0:
+                box_mask = np.zeros((self.ny, self.nx), dtype=bool)
+                box_mask[y0:y1, x0:x1] = True
+                flat_mask = box_mask.ravel()
+                for feat, value in overrides.box_feature_set.items():
+                    if feat in self.feature_index:
+                        idx = self.feature_index[feat]
+                        X[flat_mask, idx] = float(value)
 
         # Wind speed cannot be negative after any offset/scale transformations.
         for feat in WIND_SPEED_FEATURES:

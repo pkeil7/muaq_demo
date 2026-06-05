@@ -20,5 +20,12 @@
   "weather_offset_internal_scales": {
     "era5l_sp": 100.0,
     "era5_sp": 100.0
-  }
+  },
+  "city_centre_box_indices": [
+    110, 
+    150,
+    150,
+    190
+  ]
 }
+
