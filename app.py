@@ -384,6 +384,7 @@ def main() -> None:
     options = time_options(service)
     label_to_idx = {label: idx for label, idx in options}
     st.sidebar.header("Scenario Controls")
+    st.sidebar.markdown("Use the controls below to play with our AI for urban air pollution. Chose a date/time, change the background NO2, or the even weather and see what the effect on NO2 is! ")
     selected_time_label = st.sidebar.select_slider(
         "date/time",
         options=[label for label, _ in options],
