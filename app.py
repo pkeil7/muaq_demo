@@ -114,6 +114,27 @@ def selected_hour(service: XGBWhatIfService, time_index: int) -> int:
     return int(selected.astype("datetime64[h]").astype(int) % 24)
 
 
+def selected_time_metadata(service: XGBWhatIfService, time_index: int) -> tuple[str, str, str]:
+    ds = service.predictor.ds
+    if "time" not in ds.coords:
+        return "n/a", "n/a", "n/a"
+
+    values = ds["time"].values
+    if not np.issubdtype(values.dtype, np.datetime64):
+        return str(values[int(time_index)]), "n/a", "n/a"
+
+    selected = values[int(time_index)]
+    timestamp = np.datetime_as_string(selected, unit="m")
+    if "T" in timestamp:
+        date_text, time_text = timestamp.split("T", 1)
+    else:
+        date_text = timestamp
+        time_text = "n/a"
+
+    is_weekend = not bool(np.is_busday(selected.astype("datetime64[D]")))
+    return date_text, time_text, "yes" if is_weekend else "no"
+
+
 def weather_offset_bounds(service: XGBWhatIfService, feature_name: str) -> tuple[float, float, str]:
     configured = service.weather_offset_bounds(feature_name)
     if configured is not None:
@@ -216,10 +237,6 @@ def draw_maps(
 
         w_vmin = float(min(np.nanmin(weather_baseline), np.nanmin(weather_scenario)))
         w_vmax = float(max(np.nanmax(weather_baseline), np.nanmax(weather_scenario)))
-        w_dmax = float(np.nanmax(np.abs(weather_difference)))
-        if w_dmax == 0.0:
-            w_dmax = 1.0
-
         im3 = axes[1, 0].imshow(weather_baseline, origin="lower", vmin=w_vmin, vmax=w_vmax, cmap="viridis")
         axes[1, 0].set_title(f"{weather_label} Baseline")
         axes[1, 0].invert_yaxis()
@@ -238,14 +255,7 @@ def draw_maps(
         if weather_unit:
             cbar4.set_label(weather_unit)
 
-        im5 = axes[1, 2].imshow(weather_difference, origin="lower", vmin=-w_dmax, vmax=w_dmax, cmap="RdBu_r")
-        axes[1, 2].set_title("Difference (scenario - baseline)")
-        axes[1, 2].invert_yaxis()
-        axes[1, 2].set_xticks([])
-        axes[1, 2].set_yticks([])
-        cbar5 = fig.colorbar(im5, ax=axes[1, 2], shrink=0.8)
-        if weather_unit:
-            cbar5.set_label(weather_unit)
+        axes[1, 2].axis("off")
 
     return fig
 
@@ -279,23 +289,32 @@ def main() -> None:
     )
     time_index = int(label_to_idx[selected_time_label])
 
+    date_text, time_text, weekend_text = selected_time_metadata(service, time_index)
+    meta_col, github_col = st.columns([4, 1])
+    with meta_col:
+        st.markdown(f"**Date:** {date_text}  |  **Time:** {time_text}  |  **Weekend:** {weekend_text}")
+    with github_col:
+        st.markdown(
+            """
+            <div style="max-width: 290px; margin-top: 0; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25;">
+                <strong>github.com/pkeil7/muaq_demo</strong><br>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     auto_hour = selected_hour(service, time_index)
     scenario_hour = st.sidebar.slider("scenario hour", min_value=0, max_value=23, value=auto_hour)
 
     cfg = service.config
+    st.sidebar.markdown(r"Background NO2 Difference ($\mu g\, /\, m^{3}$)")
     mod_offset = st.sidebar.slider(
-        "Background NO2 offset",
+        "Background NO2 Difference",
         min_value=float(cfg.mod_offset_min),
         max_value=float(cfg.mod_offset_max),
         value=0.0,
         step=0.5,
-    )
-    mod_scale = st.sidebar.slider(
-        "Background NO2 scale",
-        min_value=float(cfg.mod_scale_min),
-        max_value=float(cfg.mod_scale_max),
-        value=1.0,
-        step=0.01,
+        label_visibility="collapsed",
     )
 
     weather_features = service.available_weather_features()
@@ -312,15 +331,19 @@ def main() -> None:
         weather_unit = ""
     else:
         lo, hi, weather_unit = weather_offset_bounds(service, selected_weather)
+        weather_name = feature_label(selected_weather)
+        weather_offset_label = (
+            f"{weather_name} Difference {weather_unit}" if weather_unit else f"{weather_name} Difference"
+        )
         weather_offset = st.sidebar.slider(
-            f"weather offset ({weather_unit})" if weather_unit else "weather offset",
+            weather_offset_label,
             min_value=float(lo),
             max_value=float(hi),
             value=0.0,
             step=1.0,
         )
         weather_scale = st.sidebar.slider(
-            "weather scale",
+            f"{weather_name} multiplied by",
             min_value=float(cfg.weather_scale_min),
             max_value=float(cfg.weather_scale_max),
             value=1.0,
@@ -331,7 +354,7 @@ def main() -> None:
         time_index=time_index,
         hour_override=int(scenario_hour),
         mod_offset=float(mod_offset),
-        mod_scale=float(mod_scale),
+        mod_scale=1.0,
         weather_feature=None if selected_weather == "none" else selected_weather,
         weather_offset=float(weather_offset),
         weather_scale=float(weather_scale),
@@ -361,14 +384,6 @@ def main() -> None:
             p95: {p95:.3f}
         </div>
         """.format(**diagnostics),
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        """
-        <div style="position: fixed; right: 5px; bottom: 5px; z-index: 999; max-width: 290px; padding: 6px 10px; border: 1px solid #d8dbe2; border-radius: 8px; font-size: 0.78rem; line-height: 1.25; ">
-            <strong>github.com/pkeil7/muaq_demo</strong><br>
-        </div>
-        """,
         unsafe_allow_html=True,
     )
 
