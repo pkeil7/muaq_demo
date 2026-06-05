@@ -20,6 +20,7 @@ from whatif_service import ScenarioRequest, XGBWhatIfService
 from parameters import (
     FEATURE_LABELS,
     PRESSURE_FEATURES,
+    RELATIVE_HUMIDITY_FEATURES,
     TEMPERATURE_FEATURES,
     WEATHER_OFFSET_UNITS,
     WIND_DIRECTION_FEATURES,
@@ -28,6 +29,8 @@ from parameters import (
 
 OFFSET_SLIDER_MIN = -180.0
 OFFSET_SLIDER_MAX = 180.0
+RH_OFFSET_SLIDER_MIN = -50.0
+RH_OFFSET_SLIDER_MAX = 50.0
 
 
 @st.cache_resource(show_spinner=False)
@@ -175,8 +178,14 @@ def weather_offset_bounds(service: XGBWhatIfService, feature_name: str) -> tuple
         lo, hi = configured
         lo = max(float(lo), OFFSET_SLIDER_MIN)
         hi = min(float(hi), OFFSET_SLIDER_MAX)
+        if feature_name in RELATIVE_HUMIDITY_FEATURES:
+            lo = max(lo, RH_OFFSET_SLIDER_MIN)
+            hi = min(hi, RH_OFFSET_SLIDER_MAX)
         if hi < lo:
-            lo, hi = OFFSET_SLIDER_MIN, OFFSET_SLIDER_MAX
+            if feature_name in RELATIVE_HUMIDITY_FEATURES:
+                lo, hi = RH_OFFSET_SLIDER_MIN, RH_OFFSET_SLIDER_MAX
+            else:
+                lo, hi = OFFSET_SLIDER_MIN, OFFSET_SLIDER_MAX
         unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
         return float(lo), float(hi), unit
 
@@ -192,7 +201,10 @@ def weather_offset_bounds(service: XGBWhatIfService, feature_name: str) -> tuple
         vmax -= 273.15
 
     bound = float(max(abs(np.rint(vmin)), abs(np.rint(vmax))))
-    bound = min(bound, OFFSET_SLIDER_MAX)
+    if feature_name in RELATIVE_HUMIDITY_FEATURES:
+        bound = min(bound, RH_OFFSET_SLIDER_MAX)
+    else:
+        bound = min(bound, OFFSET_SLIDER_MAX)
     unit = WEATHER_OFFSET_UNITS.get(feature_name, "")
     return -bound, bound, unit
 
@@ -231,6 +243,8 @@ def weather_feature_maps(
     baseline_raw = np.nan_to_num(baseline_raw, nan=0.0).astype(np.float32, copy=False)
     internal_offset = service.to_internal_weather_offset(feature_name, request.weather_offset)
     scenario_raw = (baseline_raw * float(request.weather_scale)) + float(internal_offset)
+    if feature_name in RELATIVE_HUMIDITY_FEATURES:
+        scenario_raw = np.clip(scenario_raw, 0.0, 100.0)
     if feature_name in WIND_DIRECTION_FEATURES:
         scenario_raw = np.mod(scenario_raw, 360.0)
 
@@ -421,7 +435,7 @@ def draw_maps(
 
 def main() -> None:
     st.set_page_config(page_title="XGBoost What-If Explorer", layout="wide")
-    st.title("Interactive XGBoost What-If Explorer")
+    st.title("Interactive AI-powered What-If Explorer for Urban Air Pollution")
 
     default_cfg = str(Path(__file__).with_name("whatif_runtime_config.json"))
     if "runtime_config_path" not in st.session_state:
@@ -479,6 +493,9 @@ def main() -> None:
         value=options[0][0],
     )
     time_index = int(label_to_idx[selected_time_label])
+
+    st.markdown("Change the parameters on the left to see effects on NO2 pollution!")
+    st.markdown("Play at home here: https://muaq-demo-openday.streamlit.app/")
 
     date_text, time_text, weekend_text = selected_time_metadata(service, time_index)
     meta_col, github_col = st.columns([4, 1])
@@ -590,6 +607,8 @@ def main() -> None:
     else:
         st.sidebar.caption(f"Grid data file: {selected_grid_path.name}")
 
+    st.sidebar.markdown("About: Predictions are based on a XGBoost machine learning model trained on NO2 measurements in Hamburg. There are 25 input features related to weather, land cover, and proximity to roads and industry. Resolution is 100m.")
+
     request = ScenarioRequest(
         time_index=time_index,
         hour_override=int(scenario_hour),
@@ -609,8 +628,6 @@ def main() -> None:
     if city_centre_landcover is not None:
         scenario_box_indices = city_centre_box_indices_for_service(service)
 
-    st.caption(f"Industry scenario: {selected_industry_label}")
-    st.caption(f"City centre box scenario: {selected_city_centre_landcover_label}")
     if scenario_box_indices is not None:
         y0, y1, x0, x1 = scenario_box_indices
         st.caption(f"City centre box indices [y0:y1, x0:x1] = [{y0}:{y1}, {x0}:{x1}]")

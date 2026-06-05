@@ -23,7 +23,11 @@ from IPython.display import display
 from whatif_config import load_runtime_config
 from whatif_service import ScenarioRequest, XGBWhatIfService
 from xgb_whatif import XGBWhatIfPredictor
-from parameters import FEATURE_LABELS, WEATHER_OFFSET_UNITS, PRESSURE_FEATURES
+from parameters import FEATURE_LABELS, WEATHER_OFFSET_UNITS, PRESSURE_FEATURES, RELATIVE_HUMIDITY_FEATURES
+
+
+RH_OFFSET_SLIDER_MIN = -50.0
+RH_OFFSET_SLIDER_MAX = 50.0
 
 
 def feature_label(feature_name: str) -> str:
@@ -73,6 +77,9 @@ def build_weather_offset_ranges(
             symmetric_bound = 1.0
         display_min = -symmetric_bound
         display_max = symmetric_bound
+        if feature in RELATIVE_HUMIDITY_FEATURES:
+            display_min = max(display_min, RH_OFFSET_SLIDER_MIN)
+            display_max = min(display_max, RH_OFFSET_SLIDER_MAX)
 
         ranges[feature] = {
             "min": display_min,
@@ -116,8 +123,13 @@ def launch_simple_whatif(
     for feature_name in weather_features:
         configured_bounds = service.weather_offset_bounds(feature_name)
         if configured_bounds is not None:
-            weather_offset_ranges[feature_name]["min"] = float(configured_bounds[0])
-            weather_offset_ranges[feature_name]["max"] = float(configured_bounds[1])
+            configured_min = float(configured_bounds[0])
+            configured_max = float(configured_bounds[1])
+            if feature_name in RELATIVE_HUMIDITY_FEATURES:
+                configured_min = max(configured_min, RH_OFFSET_SLIDER_MIN)
+                configured_max = min(configured_max, RH_OFFSET_SLIDER_MAX)
+            weather_offset_ranges[feature_name]["min"] = configured_min
+            weather_offset_ranges[feature_name]["max"] = configured_max
 
         weather_offset_ranges[feature_name]["scale_to_internal"] = float(
             runtime_config.weather_offset_internal_scales.get(

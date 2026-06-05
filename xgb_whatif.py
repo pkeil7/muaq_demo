@@ -14,7 +14,13 @@ import numpy as np
 import xarray as xr
 import xgboost as xgb
 
-from parameters import FEATURE_MAPPING, DEFAULT_WEATHER_FEATURES, WIND_DIRECTION_FEATURES, WIND_SPEED_FEATURES
+from parameters import (
+    DEFAULT_WEATHER_FEATURES,
+    FEATURE_MAPPING,
+    RELATIVE_HUMIDITY_FEATURES,
+    WIND_DIRECTION_FEATURES,
+    WIND_SPEED_FEATURES,
+)
 
 @dataclass
 class WhatIfOverrides:
@@ -134,6 +140,12 @@ class XGBWhatIfPredictor:
             if feat in self.feature_index:
                 idx = self.feature_index[feat]
                 X[:, idx] = np.maximum(X[:, idx], 0.0)
+
+        # Relative humidity is a percentage and must stay within [0, 100].
+        for feat in RELATIVE_HUMIDITY_FEATURES:
+            if feat in self.feature_index:
+                idx = self.feature_index[feat]
+                X[:, idx] = np.clip(X[:, idx], 0.0, 100.0)
 
         # Wind direction is cyclical in degrees and must stay within [0, 360).
         for feat in WIND_DIRECTION_FEATURES:
