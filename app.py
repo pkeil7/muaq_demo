@@ -31,8 +31,12 @@ OFFSET_SLIDER_MAX = 180.0
 
 
 @st.cache_resource(show_spinner=False)
-def load_service(config_path: str) -> XGBWhatIfService:
-    return XGBWhatIfService.from_config(config_path)
+def load_service(model_path: str, grid_data_path: str, config_path: str) -> XGBWhatIfService:
+    return XGBWhatIfService.from_paths(
+        model_path=model_path,
+        grid_data_path=grid_data_path,
+        config_path=config_path,
+    )
 
 
 def _secret_or_env(name: str, default: str = "") -> str:
@@ -53,6 +57,33 @@ def _load_runtime_payload(config_path: str) -> dict:
     return payload
 
 
+def _resolve_path(path_text: str) -> Path:
+    path = Path(path_text)
+    if not path.is_absolute():
+        path = (Path.cwd() / path).resolve()
+    return path
+
+
+def discover_grid_data_files(config_path: str) -> tuple[dict, list[Path], int]:
+    payload = _load_runtime_payload(config_path)
+    raw_grid_path = str(payload.get("default_grid_data_path", "")).strip()
+    if not raw_grid_path:
+        raise ValueError("Runtime config must define default_grid_data_path.")
+
+    default_grid_path = _resolve_path(raw_grid_path)
+    candidates: list[Path] = []
+
+    search_dir = default_grid_path.parent
+    if search_dir.exists() and search_dir.is_dir():
+        candidates = sorted(search_dir.glob("*.nc"))
+
+    if default_grid_path not in candidates:
+        candidates.insert(0, default_grid_path)
+
+    default_index = candidates.index(default_grid_path)
+    return payload, candidates, default_index
+
+
 def _download_file(url: str, destination: Path, auth_header: str = "") -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = Request(url)
@@ -70,16 +101,7 @@ def _download_file(url: str, destination: Path, auth_header: str = "") -> None:
             out.write(chunk)
 
 
-def ensure_grid_data_available(config_path: str) -> None:
-    payload = _load_runtime_payload(config_path)
-    raw_grid_path = str(payload.get("default_grid_data_path", "")).strip()
-    if not raw_grid_path:
-        return
-
-    grid_path = Path(raw_grid_path)
-    if not grid_path.is_absolute():
-        grid_path = (Path.cwd() / grid_path).resolve()
-
+def ensure_grid_data_available(grid_path: Path) -> None:
     if grid_path.exists():
         return
 
@@ -402,16 +424,47 @@ def main() -> None:
     st.title("Interactive XGBoost What-If Explorer")
 
     default_cfg = str(Path(__file__).with_name("whatif_runtime_config.json"))
-    config_path = st.sidebar.text_input("Runtime config path", value=default_cfg)
+    if "runtime_config_path" not in st.session_state:
+        st.session_state["runtime_config_path"] = default_cfg
+    config_path = str(st.session_state.get("runtime_config_path", default_cfg))
 
     try:
-        ensure_grid_data_available(config_path)
+        payload, grid_data_candidates, default_grid_index = discover_grid_data_files(config_path)
+    except Exception as exc:
+        st.error(f"Failed to read runtime config/grid data options: {exc}")
+        st.stop()
+
+    selected_grid_path: Path
+    grid_option_values = [str(path) for path in grid_data_candidates]
+    default_grid_value = str(grid_data_candidates[default_grid_index])
+    if len(grid_data_candidates) > 1:
+        selected_grid_value = str(st.session_state.get("selected_grid_data_path", default_grid_value))
+        if selected_grid_value not in grid_option_values:
+            selected_grid_value = default_grid_value
+            st.session_state["selected_grid_data_path"] = selected_grid_value
+        selected_grid_path = Path(selected_grid_value)
+    else:
+        selected_grid_path = grid_data_candidates[0]
+        st.session_state["selected_grid_data_path"] = str(selected_grid_path)
+
+    try:
+        ensure_grid_data_available(selected_grid_path)
     except Exception as exc:
         st.error(f"Failed during startup data check/download: {exc}")
         st.stop()
 
+    raw_model_path = str(payload.get("default_model_path", "")).strip()
+    if not raw_model_path:
+        st.error("Runtime config must define default_model_path.")
+        st.stop()
+    model_path = _resolve_path(raw_model_path)
+
     try:
-        service = load_service(config_path)
+        service = load_service(
+            model_path=str(model_path),
+            grid_data_path=str(selected_grid_path),
+            config_path=config_path,
+        )
     except Exception as exc:
         st.error(f"Failed to load service from config: {exc}")
         st.stop()
@@ -523,6 +576,19 @@ def main() -> None:
         index=0,
     )
     city_centre_landcover = city_centre_landcover_options[selected_city_centre_landcover_label]
+
+    st.sidebar.header("Config")
+    st.sidebar.text_input("Runtime config path", key="runtime_config_path")
+    if len(grid_data_candidates) > 1:
+        st.sidebar.selectbox(
+            "Grid data file",
+            options=grid_option_values,
+            index=grid_option_values.index(str(selected_grid_path)),
+            key="selected_grid_data_path",
+            format_func=lambda p: Path(p).name,
+        )
+    else:
+        st.sidebar.caption(f"Grid data file: {selected_grid_path.name}")
 
     request = ScenarioRequest(
         time_index=time_index,
