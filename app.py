@@ -464,7 +464,7 @@ def main() -> None:
         "weather variable",
         options=weather_choices,
         index=0,
-        format_func=lambda x: "Select One" if x == "select_one" else feature_label(x),
+        format_func=lambda x: "Nothing (Select One)" if x == "select_one" else feature_label(x),
     )
 
     if selected_weather == "select_one":
@@ -496,9 +496,9 @@ def main() -> None:
             weather_scale = 1.0
 
     industry_options = {
-        "Select One": None,
+        "Nothing (Select One)": None,
         "Industry everywhere": 0.0,
-        "Next industry at least 20 km away": 20000.0,
+        "Next Industry at least 30km away": 30000.0,
     }
     st.sidebar.header("Industry Effect on NO2")
     st.sidebar.markdown("Remove industry everywhere or put industry everywhere!")
@@ -510,7 +510,7 @@ def main() -> None:
     industry_distance = industry_options[selected_industry_label]
 
     city_centre_landcover_options = {
-        "Select One": None,
+        "Nothing (Select One)": None,
         "Forest": 3,
         "Water": 5,
         "Field": 4,
